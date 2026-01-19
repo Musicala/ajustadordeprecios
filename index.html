@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ajustador de Precios · Musicala</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Queremos CLARO: el navegador no necesita “light dark” si tú ya decidiste -->
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#F9F9F9" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Fix duro para que hidden SIEMPRE oculte loaders/toasts aunque el CSS diga display:flex -->
+  <style>
+    [hidden]{ display:none !important; }
+
+    /* Micro-ajustes SOLO para que el logo se vea decente desde ya,
+       aunque el CSS lo cambiemos después a modo claro. */
+    .brand{
+      align-items:center;
+    }
+    .brand-logo{
+      height: 56px;
+      width: auto;
+      max-width: 420px;
+      object-fit: contain;
+      display:block;
+      /* lo hace ver más limpio sobre fondos claros u oscuros */
+      filter: drop-shadow(0 6px 18px rgba(0,0,0,.12));
+    }
+    /* Si el logo carga, el puntico sobra. Si NO carga, mostramos el puntico. */
+    html:not(.no-logo) .logo-dot{ display:none; }
+    html.no-logo .logo-dot{ display:inline-block; }
+
+    /* Clase de tema */
+    body.theme-light{ background: #F9F9F9; }
+  </style>
+</head>
+
+<body class="theme-light">
+
+  <!-- Skip link accesible -->
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <img
+        class="brand-logo"
+        src="logo.png"
+        alt="Musicala"
+        loading="eager"
+        decoding="async"
+        onerror="this.hidden=true; document.documentElement.classList.add('no-logo')"
+      />
+      <div class="logo-dot" aria-hidden="true"></div>
+
+      <div class="brand-text">
+        <h1>Ajustador de precios</h1>
+        <p class="sub">Base: <strong>Sede Personalizado · Paquete 4 clases</strong></p>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn ghost" id="btnHelp" type="button" title="Tips de uso">Ayuda</button>
+
+      <!-- NUEVO: abre el análisis de asequibilidad por SMMLV -->
+      <button class="btn ghost" id="btnAfford" type="button" title="Ver % del ingreso (1 a 3 SMMLV)">
+        Análisis SMMLV
+      </button>
+
+      <button class="btn" id="btnCopy" type="button" title="Copiar tabla">Copiar</button>
+    </div>
+  </header>
+
+  <main id="main" class="layout">
+
+    <!-- Panel izquierdo: configuración -->
+    <aside class="panel">
+      <div class="panel-head">
+        <h2>Configuración</h2>
+        <span class="badge" id="statusBadge">Listo</span>
+      </div>
+
+      <div class="form-grid">
+        <label class="field">
+          <span class="label">Valor por clase base (COP)</span>
+          <div class="input-row">
+            <input type="number" id="basePrice" value="50000" step="500" min="0" inputmode="numeric" />
+            <button class="mini" id="btnBaseDown" type="button" title="-500">-</button>
+            <button class="mini" id="btnBaseUp" type="button" title="+500">+</button>
+          </div>
+          <span class="hint">Este valor representa el precio por clase dentro del paquete de 4 (Sede Personalizado).</span>
+        </label>
+
+        <label class="field">
+          <span class="label">Redondeo</span>
+          <select id="rounding">
+            <option value="0">Sin redondeo</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+            <option value="1000" selected>1.000</option>
+            <option value="2000">2.000</option>
+            <option value="5000">5.000</option>
+          </select>
+          <span class="hint">Se aplica hacia arriba (redondeo comercial).</span>
+        </label>
+
+        <label class="field">
+          <span class="label">Ajuste global (%)</span>
+          <div class="input-row">
+            <input type="number" id="globalPct" value="0" step="0.5" />
+            <span class="chip">%</span>
+          </div>
+          <span class="hint">Útil para “subir todo” por inflación sin tocar reglas.</span>
+        </label>
+
+        <!-- Recargo tarjeta -->
+        <div class="field">
+          <span class="label">Recargos</span>
+          <label class="check">
+            <input type="checkbox" id="ccFee" />
+            <span>Recargo tarjeta (+6%)</span>
+          </label>
+          <span class="hint">Suma +6% al valor final (después del redondeo) y vuelve a redondear.</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <span class="label">Vista</span>
+          <div class="segmented" role="tablist" aria-label="Vista">
+            <button class="seg on" id="viewTable" type="button" role="tab" aria-selected="true">Tabla</button>
+            <button class="seg" id="viewCards" type="button" role="tab" aria-selected="false">Cards</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Mostrar</span>
+          <label class="check">
+            <input type="checkbox" id="showOnlyVisible" checked />
+            <span>Solo resultados filtrados</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="compactMode" />
+            <span>Modo compacto</span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <span class="label">Acciones rápidas</span>
+          <div class="btn-row">
+            <button class="btn ghost" id="btnReset" type="button">Restablecer</button>
+            <button class="btn" id="btnSavePreset" type="button">Guardar preset</button>
+          </div>
+          <span class="hint">El sistema guarda el estado y la config avanzada en tu navegador (localStorage).</span>
+        </div>
+      </div>
+
+      <!-- Modo avanzado: el app.js inyecta aquí el editor (reglas + servicios) -->
+      <details class="details" id="advancedDetails">
+        <summary>
+          <span>Modo avanzado (reglas y catálogo)</span>
+          <span class="muted">editable</span>
+        </summary>
+        <div class="details-body" id="advancedBody">
+          <p class="muted" style="margin-top:0">
+            Edita factores, descuentos y la lista de servicios. Se guarda automáticamente en este dispositivo.
+          </p>
+
+          <!-- Mount point: el app.js reemplaza/inyecta el UI real aquí -->
+          <div id="advMount" aria-label="Editor avanzado"></div>
+        </div>
+      </details>
+    </aside>
+
+    <!-- Panel principal: búsqueda, KPIs y resultados -->
+    <section class="content">
+      <section class="kpis" aria-label="Resumen">
+        <div class="kpi">
+          <span class="kpi-title">Servicios</span>
+          <span class="kpi-value" id="kpiTotal">0</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-title">Mostrando</span>
+          <span class="kpi-value" id="kpiShown">0</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-title">Base (clase)</span>
+          <span class="kpi-value" id="kpiBase">$0</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-title">Rango visible</span>
+          <span class="kpi-value" id="kpiRange">$0 – $0</span>
+        </div>
+      </section>
+
+      <section class="filters" aria-label="Filtros">
+        <div class="search">
+          <input id="q" type="search" placeholder="Buscar servicio… (ej: Hogar 8, Musigym, Ensambles)" autocomplete="off" />
+          <button class="icon-btn" id="btnClear" type="button" title="Limpiar búsqueda" aria-label="Limpiar">✕</button>
+        </div>
+
+        <div class="filter-row">
+          <label class="field inline">
+            <span class="label">Modalidad</span>
+            <select id="fMod">
+              <option value="">Todas</option>
+              <option value="Sede">Sede</option>
+              <option value="Hogar">Hogar</option>
+              <option value="Virtual">Virtual</option>
+              <option value="Online">Plataforma Online</option>
+              <option value="Musigym">Musigym</option>
+              <option value="Curso">Cursos</option>
+              <option value="Taller">Taller empresarial</option>
+              <option value="Ensambles">Ensambles</option>
+            </select>
+          </label>
+
+          <label class="field inline">
+            <span class="label">Tipo</span>
+            <select id="fType">
+              <option value="">Todos</option>
+              <option value="Prueba">Clase de prueba</option>
+              <option value="Individual">Clase individual</option>
+              <option value="Pack">Paquetes</option>
+              <option value="Mes">Meses</option>
+              <option value="Otro">Otros</option>
+            </select>
+          </label>
+
+          <label class="field inline">
+            <span class="label">Clases</span>
+            <select id="fClasses">
+              <option value="">Todas</option>
+              <option value="1">1</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="12">12</option>
+              <option value="16">16</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="results" aria-label="Resultados">
+
+        <!-- Loader -->
+        <div class="loader" id="loader" hidden>
+          <div class="spinner" aria-hidden="true"></div>
+          <div>
+            <strong>Calculando…</strong>
+            <div class="muted">Aplicando reglas y redondeos.</div>
+          </div>
+        </div>
+
+        <!-- Tabla -->
+        <div class="table-wrap" id="tableWrap">
+          <table class="table" aria-label="Tabla de precios">
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th class="right">Precio</th>
+              </tr>
+            </thead>
+            <tbody id="priceTable"></tbody>
+          </table>
+        </div>
+
+        <!-- Cards -->
+        <div class="cards" id="cardsWrap" hidden></div>
+
+        <!-- Empty -->
+        <div class="empty" id="emptyState" hidden>
+          <div class="empty-icon" aria-hidden="true">🔍</div>
+          <div>
+            <h3>No hay resultados</h3>
+            <p class="muted">Prueba con otra búsqueda o limpia los filtros.</p>
+          </div>
+          <button class="btn ghost" id="btnEmptyReset" type="button">Limpiar filtros</button>
+        </div>
+
+      </section>
+    </section>
+  </main>
+
+  <!-- Modal ayuda -->
+  <dialog class="modal" id="helpModal">
+    <form method="dialog" class="modal-card">
+      <header class="modal-head">
+        <h3>Cómo usar esto</h3>
+        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="modal-body">
+        <ul class="tips">
+          <li><strong>Base</strong>: define el valor por clase del paquete “Sede Personalizado 4”.</li>
+          <li><strong>Global (%)</strong>: sube o baja todo sin tocar reglas.</li>
+          <li><strong>Filtros</strong>: modalidad / tipo / número de clases.</li>
+          <li><strong>Copiar</strong>: copia lo que estás viendo (ideal para enviar por WhatsApp).</li>
+          <li><strong>Modo avanzado</strong>: edita reglas y catálogo desde la interfaz, se guarda en este navegador.</li>
+          <li><strong>Análisis SMMLV</strong>: muestra qué % del ingreso representa cada precio (1 a 3 SMMLV).</li>
+        </ul>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn" value="cancel">Entendido</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- NUEVO: Modal Análisis SMMLV (lo llena app.js) -->
+  <dialog class="modal" id="affordModal">
+    <form method="dialog" class="modal-card">
+      <header class="modal-head">
+        <h3>Análisis de asequibilidad (SMMLV)</h3>
+        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <p class="muted" style="margin-top:0">
+          Esto calcula cuánto representa cada precio como % del ingreso mensual para <strong>1, 2 y 3 SMMLV</strong>.
+        </p>
+
+        <!-- Controles (app.js los usa) -->
+        <div class="filter-row" style="margin-top:12px">
+          <label class="field inline">
+            <span class="label">SMMLV (COP)</span>
+            <input id="smmlvValue" type="number" inputmode="numeric" placeholder="Ej: 1300000" />
+          </label>
+
+          <label class="field inline">
+            <span class="label">Rango</span>
+            <select id="smmlvMax">
+              <option value="3" selected>1 a 3 SMMLV</option>
+              <option value="4">1 a 4 SMMLV</option>
+              <option value="5">1 a 5 SMMLV</option>
+            </select>
+          </label>
+
+          <label class="field inline">
+            <span class="label">Fuente</span>
+            <select id="affordScope">
+              <option value="shown" selected>Solo visible (filtrado)</option>
+              <option value="all">Todos los servicios</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Tabla de resultados -->
+        <div class="table-wrap" id="affordWrap">
+          <table class="table" aria-label="Tabla de asequibilidad">
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th class="right">Precio</th>
+                <th class="right">1 SMMLV</th>
+                <th class="right">2 SMMLV</th>
+                <th class="right">3 SMMLV</th>
+              </tr>
+            </thead>
+            <tbody id="affordTable"></tbody>
+          </table>
+        </div>
+
+        <p class="muted" style="margin:12px 0 0 0">
+          Nota: si activas recargo tarjeta, el análisis lo calcula con el precio final.
+        </p>
+      </div>
+
+      <footer class="modal-foot">
+        <button class="btn" value="cancel">Cerrar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span id="toastMsg">Copiado ✅</span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
