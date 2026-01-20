@@ -1,12 +1,14 @@
 /* ============================================================================
-   Ajustador de Precios · Musicala — app.js (vPRO+CONFIG+CCFEE+AFFORD)
+   Ajustador de Precios · Musicala — app.js (vPRO+CONFIG+CCFEE+AFFORD) — vNext+
    - Config avanzada editable (reglas + catálogo) guardada en localStorage
    - UI avanzada inyectada en el <details> existente (sin tocar HTML)
    - Migración suave: v1 -> v2
    - ✅ Toggle recargo tarjeta +6% (ccFee) aplicado AL FINAL y re-redondeado
    - ✅ "Solo resultados filtrados" funciona (si off, muestra TODO ignorando filtros)
    - ✅ Loader robusto (hidden + display)
-   - ✅ NUEVO: Modal "Análisis SMMLV" (% del ingreso para 1..3 SMMLV o más)
+   - ✅ Modal "Análisis SMMLV" (% del ingreso para 1..3 SMMLV o más)
+   - ✅ Cursos NO aplican packDiscount por cantidad (sean por clases o por horas)
+   - ✅ NUEVO: Soporte “Paquete de X horas” (18h / 27h / 36h) para Curso de formación
 ============================================================================ */
 
 /* ================================
@@ -36,7 +38,6 @@ function safeNumber(v, fallback=0){
 function formatPct(n){
   const x = Number(n);
   if(!Number.isFinite(x)) return "—";
-  // 1 decimal si es pequeño, entero si es grande
   const d = x < 10 ? 1 : 0;
   return `${x.toFixed(d)}%`;
 }
@@ -60,54 +61,57 @@ function deepClone(obj){
 // Factor por modalidad/categoría (sobre base por-clase)
 const FACTOR_BY_GROUP_DEFAULT = {
   "Sede Personalizado": 1.00,
-  "Musifamiliar Sede Grupal": 0.85,
-  "Sede Grupal": 0.75,
-  "Ensambles": 0.70,
+  "Musifamiliar Sede Grupal": 1.27,
+  "Sede Grupal": 0.509,
+  "Ensambles": 0.25,
 
-  "Hogar Personalizado": 1.35,
-  "Hogar Musifamiliar Grupal": 1.15,
+  "Hogar Personalizado": 1.2,
+  "Hogar Musifamiliar Grupal": 1.4,
 
-  "Virtual Personalizado": 0.85,
-  "Virtual Grupal": 0.65,
+  "Virtual Personalizado": 0.9,
+  "Virtual Grupal": 1.1,
 
-  "Taller empresarial": 2.00,
+  "Taller empresarial": 1.3,
 
-  // Cursos: por ahora como "paquetes", se ajusta luego
-  "Curso Preuniversitario": 0.90,
-  "Curso de formación": 0.90,
-  "Curso Vacacional": 0.95,
+  // Cursos (por clases u horas): NO packDiscount por cantidad
+  "Curso Preuniversitario Personalizado": 0.5,
+  "Curso Preuniversitario Grupal": 0.4,
+  "Curso de formación Paquete de 27 clases": 0.32,
+  "Curso de formación Paquete de 36 clases": 0.26,
+  "Curso Vacacional": 0.25,
+
+  // Compat (por si quedó guardado en config vieja)
+  "Curso Preuniversitario": 0.70,
 
   // Suscripciones: fixed multipliers (sobre base por clase)
-  "Musigym": 2.50,              // 1 mes
-  "Plataforma Online": 1.20      // 1 mes
+  "Musigym": 2.00,              // 1 mes
+  "Plataforma Online": 0.70      // 1 mes
 };
 
 // Multiplicador por tipo dentro del grupo (sobre factor del grupo)
 const TYPE_FACTOR_DEFAULT = {
-  "Clase de prueba": 0.60,
+  "Clase de prueba": 0.80,
   "Clase individual": 1.10,
   "Paquete": 1.00,
   "Mes": 1.00,
-  "Otro": 1.00
 };
 
 // Descuento por volumen en paquetes (aplica a precio total)
+// (No aplica a Cursos por política)
 const PACK_DISCOUNT_DEFAULT = {
   4:  1.00,
-  8:  0.97,
-  12: 0.95,
-  16: 0.94,
-  20: 0.93,
-  24: 0.90
+  8:  0.95,
+  12: 0.90,
+  24: 0.85
 };
 
 // Multiplicadores por duración (meses) para suscripciones
 const MONTHS_MULT_DEFAULT = {
   1:  1.00,
-  2:  1.85,
-  3:  2.70,
-  6:  4.80,
-  12: 8.30
+  2:  1.95,
+  3:  2.90,
+  6:  5.85,
+  12: 11.80
 };
 
 // Catálogo completo (según lista)
@@ -177,8 +181,15 @@ const SERVICE_NAMES_DEFAULT = [
   "Plataforma Online 6 meses",
   "Plataforma Online 12 meses",
 
-  "Curso Preuniversitario 3 meses",
-  "Curso de formación 3 meses",
+  // ✅ Cursos actualizados
+  "Curso Preuniversitario Personalizado Paquete de 54 clases",
+  "Curso Preuniversitario Grupal Paquete de 54 clases",
+
+  // ✅ Curso de formación por HORAS
+  "Curso de formación Paquete de 27 horas",
+  "Curso de formación Paquete de 36 horas",
+
+  // Vacacional por clases
   "Curso Vacacional Paquete de 20 clases",
   "Curso Vacacional Paquete de 16 clases",
 
@@ -191,7 +202,7 @@ const SERVICE_NAMES_DEFAULT = [
 
 // Defaults UI
 const DEFAULTS = {
-  base: 50000,
+  base: 70000,
   rounding: 1000,
   globalPct: 0,
   ccFee: false,
@@ -200,11 +211,11 @@ const DEFAULTS = {
   compact: false,
   filters: { q:"", mod:"", type:"", classes:"" },
 
-  // NUEVO: análisis SMMLV (usuario pone el valor)
+  // Análisis SMMLV
   afford: {
-    smmlv: "",     // string para permitir vacío
+    smmlv: "1750905",
     max: 3,
-    scope: "shown" // shown|all
+    scope: "shown"
   }
 };
 
@@ -219,6 +230,7 @@ const CONFIG_DEFAULT = {
 
 /* ================================
    Parseo inteligente de servicio
+   - Soporta paquete de X clases / paquete de X horas
 ================================ */
 function parseServiceName(name, config){
   const raw = String(name || "").trim();
@@ -230,6 +242,8 @@ function parseServiceName(name, config){
     .replace(/\s+/g, " ")
     .trim();
 
+  const nrmNorm = normalizeText(nrm);
+
   // Tipo
   let type = "Otro";
   if(/clase de prueba/i.test(nrm)) type = "Clase de prueba";
@@ -238,58 +252,76 @@ function parseServiceName(name, config){
   else if(/\bmes(es)?\b/i.test(nrm)) type = "Mes";
   else type = "Otro";
 
-  // Clases / meses
+  // Clases / horas / meses
   let classes = 0;
+  let hours = 0;
   let months = 0;
 
   const mCl = nrm.match(/paquete de\s*(\d+)\s*clases/i);
   if(mCl) classes = safeNumber(mCl[1], 0);
+
+  const mHr = nrm.match(/paquete de\s*(\d+)\s*horas/i);
+  if(mHr) hours = safeNumber(mHr[1], 0);
 
   if(/clase de prueba|clase individual/i.test(nrm)) classes = 1;
 
   const mMo = nrm.match(/(\d+)\s*mes(es)?/i);
   if(mMo) months = safeNumber(mMo[1], 0);
 
-  // Grupo
+  // Para el filtro "Clases / Horas", usamos una sola cifra “qty”
+  const qty = (hours > 0) ? hours : (classes > 0 ? classes : 0);
+  const qtyUnit = (hours > 0) ? "horas" : (classes > 0 ? "clases" : "");
+
+  // Grupo (match por claves del config)
   const gf = (config && config.groupFactor) ? config.groupFactor : FACTOR_BY_GROUP_DEFAULT;
   const GROUP_KEYS = Object.keys(gf).sort((a,b)=>b.length-a.length);
   let group = "";
   for(const g of GROUP_KEYS){
     const ng = normalizeText(g);
-    if(normalizeText(nrm).includes(ng)){
+    if(nrmNorm.includes(ng)){
       group = g;
       break;
     }
   }
 
-  // Fallback por prefijos
+  // Fallback por prefijos (más inteligente para cursos)
   if(!group){
-    if(/^sede personalizado/i.test(nrm)) group = "Sede Personalizado";
-    else if(/^musifamiliar sede grupal/i.test(nrm)) group = "Musifamiliar Sede Grupal";
-    else if(/^sede grupal/i.test(nrm)) group = "Sede Grupal";
-    else if(/^ensambles/i.test(nrm)) group = "Ensambles";
-    else if(/^hogar personalizado/i.test(nrm)) group = "Hogar Personalizado";
-    else if(/^hogar musifamiliar grupal/i.test(nrm)) group = "Hogar Musifamiliar Grupal";
-    else if(/^virtual personalizado/i.test(nrm)) group = "Virtual Personalizado";
-    else if(/^virtual grupal/i.test(nrm)) group = "Virtual Grupal";
-    else if(/^musigym/i.test(nrm)) group = "Musigym";
-    else if(/^plataforma online/i.test(nrm)) group = "Plataforma Online";
-    else if(/^curso preuniversitario/i.test(nrm)) group = "Curso Preuniversitario";
-    else if(/^curso de formacion/i.test(normalizeText(nrm))) group = "Curso de formación";
-    else if(/^curso vacacional/i.test(nrm)) group = "Curso Vacacional";
-    else if(/^taller empresarial/i.test(nrm)) group = "Taller empresarial";
+    if(/^sede personalizado/i.test(nrmNorm)) group = "Sede Personalizado";
+    else if(/^musifamiliar sede grupal/i.test(nrmNorm)) group = "Musifamiliar Sede Grupal";
+    else if(/^sede grupal/i.test(nrmNorm)) group = "Sede Grupal";
+    else if(/^ensambles/i.test(nrmNorm)) group = "Ensambles";
+    else if(/^hogar personalizado/i.test(nrmNorm)) group = "Hogar Personalizado";
+    else if(/^hogar musifamiliar grupal/i.test(nrmNorm)) group = "Hogar Musifamiliar Grupal";
+    else if(/^virtual personalizado/i.test(nrmNorm)) group = "Virtual Personalizado";
+    else if(/^virtual grupal/i.test(nrmNorm)) group = "Virtual Grupal";
+    else if(/^musigym/i.test(nrmNorm)) group = "Musigym";
+    else if(/^plataforma online/i.test(nrmNorm)) group = "Plataforma Online";
+    else if(/^taller empresarial/i.test(nrmNorm)) group = "Taller empresarial";
+    else if(/^curso/i.test(nrmNorm)){
+      if(/curso preuniversitario/.test(nrmNorm) && /personalizado/.test(nrmNorm)){
+        group = "Curso Preuniversitario Personalizado";
+      }else if(/curso preuniversitario/.test(nrmNorm) && /grupal/.test(nrmNorm)){
+        group = "Curso Preuniversitario Grupal";
+      }else if(/curso preuniversitario/.test(nrmNorm)){
+        group = "Curso Preuniversitario"; // compat
+      }else if(/curso de formacion|curso de formación/.test(nrmNorm)){
+        group = "Curso de formación";
+      }else if(/curso vacacional/.test(nrmNorm)){
+        group = "Curso Vacacional";
+      }
+    }
   }
 
-  // Modalidad para filtro
+  // Modalidad para filtro (cadena limpia)
   let modality = "";
-  if(/^sede/i.test(nrm) || /sede/i.test(nrm)) modality = "Sede";
-  if(/^hogar/i.test(nrm) || /hogar/i.test(nrm)) modality = "Hogar";
-  if(/^virtual/i.test(nrm) || /virtual/i.test(nrm)) modality = "Virtual";
-  if(/^musigym/i.test(nrm)) modality = "Musigym";
-  if(/^plataforma online/i.test(nrm)) modality = "Online";
-  if(/^ensambles/i.test(nrm)) modality = "Ensambles";
-  if(/^taller empresarial/i.test(nrm)) modality = "Taller";
-  if(/^curso/i.test(nrm)) modality = "Curso";
+  if(/^curso/.test(nrmNorm)) modality = "Curso";
+  else if(/^taller empresarial/.test(nrmNorm)) modality = "Taller";
+  else if(/^ensambles/.test(nrmNorm)) modality = "Ensambles";
+  else if(/^musigym/.test(nrmNorm)) modality = "Musigym";
+  else if(/^plataforma online/.test(nrmNorm)) modality = "Online";
+  else if(/^hogar/.test(nrmNorm) || nrmNorm.includes(" hogar")) modality = "Hogar";
+  else if(/^virtual/.test(nrmNorm) || nrmNorm.includes(" virtual")) modality = "Virtual";
+  else if(/^sede/.test(nrmNorm) || nrmNorm.includes(" sede")) modality = "Sede";
 
   // type label para filtro
   let typeLabel = "Otro";
@@ -305,8 +337,11 @@ function parseServiceName(name, config){
     modality,
     typeLabel,
     classes,
+    hours,
     months,
-    _search: normalizeText(nrm)
+    qty,
+    qtyUnit,
+    _search: nrmNorm
   };
 }
 
@@ -325,7 +360,7 @@ let state = {
   showOnlyVisible: DEFAULTS.showOnlyVisible,
   compact: DEFAULTS.compact,
   filters: { ...DEFAULTS.filters },
-  afford: { ...DEFAULTS.afford }, // ✅ nuevo
+  afford: { ...DEFAULTS.afford },
   config: deepClone(CONFIG_DEFAULT)
 };
 
@@ -340,13 +375,11 @@ function normalizeConfig(cfg){
     if(Array.isArray(cfg.serviceNames)) out.serviceNames = cfg.serviceNames.slice();
   }
 
-  // Limpieza: números válidos
   for(const k of Object.keys(out.groupFactor)) out.groupFactor[k] = safeNumber(out.groupFactor[k], 1);
   for(const k of Object.keys(out.typeFactor))  out.typeFactor[k]  = safeNumber(out.typeFactor[k], 1);
   for(const k of Object.keys(out.packDiscount)) out.packDiscount[k] = safeNumber(out.packDiscount[k], 1);
   for(const k of Object.keys(out.monthsMult))  out.monthsMult[k]  = safeNumber(out.monthsMult[k], 1);
 
-  // Servicios: trim + remover vacíos + dedupe
   out.serviceNames = out.serviceNames
     .map(s => String(s||"").trim())
     .filter(Boolean);
@@ -367,7 +400,6 @@ function loadState(){
     try{ return JSON.parse(raw); }catch(e){ return null; }
   };
 
-  // 1) Intentar v2
   const raw2 = localStorage.getItem(LS_KEY_V2);
   if(raw2){
     const parsed = tryParse(raw2);
@@ -386,16 +418,13 @@ function loadState(){
         config: normalizeConfig(parsed.config)
       };
 
-      // saneo afford
       state.afford.max = clamp(safeNumber(state.afford.max, 3), 1, 12);
       state.afford.scope = (state.afford.scope === "all") ? "all" : "shown";
       state.afford.smmlv = String(state.afford.smmlv ?? "").trim();
-
       return;
     }
   }
 
-  // 2) Migrar desde v1 si existe
   const raw1 = localStorage.getItem(LS_KEY_V1);
   if(raw1){
     const parsed = tryParse(raw1);
@@ -411,7 +440,7 @@ function loadState(){
         afford: { ...DEFAULTS.afford },
         config: deepClone(CONFIG_DEFAULT)
       };
-      saveState(); // guarda ya en v2
+      saveState();
     }
   }
 }
@@ -435,6 +464,7 @@ function rebuildServices(){
 /* ================================
    Motor de cálculo (usa config)
    - ccFee: recargo tarjeta (+6%) al final y re-redondea
+   - ✅ Cursos NO aplican packDiscount por cantidad (clases/horas)
 ================================ */
 function computePrice(service, base, rounding, globalPct, config, ccFee){
   const cfg = config || CONFIG_DEFAULT;
@@ -442,7 +472,6 @@ function computePrice(service, base, rounding, globalPct, config, ccFee){
   const g = service.group || "";
   const groupFactor = safeNumber((cfg.groupFactor||{})[g], 1);
 
-  // globalPct como multiplicador
   const globalMult = 1 + (safeNumber(globalPct, 0) / 100);
 
   let finalPrice = 0;
@@ -457,8 +486,9 @@ function computePrice(service, base, rounding, globalPct, config, ccFee){
 
     const raw = oneMonth * multMonths * globalMult;
     finalPrice = roundUp(raw, rounding);
+
   }else{
-    // POR CLASES / PAQUETES
+    // POR CLASES / HORAS
     const typeKey =
       service.typeLabel === "Prueba" ? "Clase de prueba" :
       service.typeLabel === "Individual" ? "Clase individual" :
@@ -467,16 +497,20 @@ function computePrice(service, base, rounding, globalPct, config, ccFee){
     const tf = cfg.typeFactor || {};
     const typeFactor = safeNumber(tf[typeKey], 1);
 
-    const classes = service.classes > 0 ? service.classes : 1;
+    // qty = horas si existen, si no clases (y prueba/individual = 1)
+    const qty = (service.qty && service.qty > 0) ? service.qty : 1;
 
     const pd = cfg.packDiscount || {};
-    const packDisc = (pd[classes] != null) ? safeNumber(pd[classes], 1) : 1;
+    const packDisc = (pd[qty] != null) ? safeNumber(pd[qty], 1) : 1;
 
-    // en prueba e individual no aplicamos descuento de paquete
+    // En prueba e individual no aplicamos descuento de paquete
     const isPack = (service.typeLabel === "Pack" || /paquete/i.test(service.name));
-    const packMult = isPack ? packDisc : 1;
 
-    const raw = base * groupFactor * typeFactor * classes * packMult * globalMult;
+    // ✅ Regla: a Cursos NO se les aplica descuento por cantidad
+    const allowPackDiscount = isPack && service.modality !== "Curso";
+    const packMult = allowPackDiscount ? packDisc : 1;
+
+    const raw = base * groupFactor * typeFactor * qty * packMult * globalMult;
     finalPrice = roundUp(raw, rounding);
   }
 
@@ -535,7 +569,7 @@ const $helpModal = qs("#helpModal");
 const $toast = qs("#toast");
 const $toastMsg = qs("#toastMsg");
 
-// NUEVO: afford modal
+// Afford modal
 const $btnAfford    = qs("#btnAfford");
 const $affordModal  = qs("#affordModal");
 const $smmlvValue   = qs("#smmlvValue");
@@ -574,7 +608,6 @@ function textToKV(text, {keyType="string"} = {}){
     if(!line) continue;
     if(line.startsWith("#") || line.startsWith("//")) continue;
 
-    // soporta "key = value" o "key: value"
     const m = line.match(/^(.+?)[=:]\s*(.+)$/);
     if(!m) continue;
 
@@ -597,10 +630,8 @@ function ensureAdvancedUI(){
   const body = details.querySelector(".details-body");
   if(!body) return;
 
-  // Si ya existe, no duplicar
   if(body.querySelector("[data-adv='1']")) return;
 
-  // Limpia placeholder (si existe)
   const ph = body.querySelector(".placeholder");
   const p  = body.querySelector("p.muted");
   if(ph) ph.remove();
@@ -627,9 +658,9 @@ function ensureAdvancedUI(){
     </label>
 
     <label class="field">
-      <span class="label">Descuento por paquete (clases)</span>
+      <span class="label">Descuento por paquete (clases/horas)</span>
       <textarea rows="6" class="adv-ta" id="advPack"></textarea>
-      <span class="hint">Ej: <code>12 = 0.95</code> (12 clases paga 95%)</span>
+      <span class="hint">Ej: <code>12 = 0.95</code> (solo aplica a NO-Cursos)</span>
     </label>
 
     <label class="field">
@@ -666,10 +697,8 @@ function ensureAdvancedUI(){
   ADV.btnReset = qs("#advReset", wrap);
   ADV.msg = qs("#advMsg", wrap);
 
-  // Hidratar con config actual
   hydrateAdvancedUI();
 
-  // Bind
   ADV.btnApply?.addEventListener("click", applyAdvancedChanges);
   ADV.btnReset?.addEventListener("click", resetAdvancedToDefaults);
 }
@@ -693,8 +722,8 @@ function applyAdvancedChanges(){
 
     const newGF = textToKV(ADV.taGroup?.value,  {keyType:"string"});
     const newTF = textToKV(ADV.taType?.value,   {keyType:"string"});
-    const newPD = textToKV(ADV.taPack?.value,   {keyType:"string"});
-    const newMM = textToKV(ADV.taMonths?.value, {keyType:"string"});
+    const newPD = textToKV(ADV.taPack?.value,   {keyType:"number"});
+    const newMM = textToKV(ADV.taMonths?.value, {keyType:"number"});
 
     const newServices = String(ADV.taServices?.value || "")
       .split("\n")
@@ -711,7 +740,7 @@ function applyAdvancedChanges(){
 
     rebuildServices();
     saveState();
-    recalc();
+    scheduleRecalc();
 
     if(ADV.msg) ADV.msg.textContent = "Cambios aplicados ✅";
     showToast("Config aplicada ✅");
@@ -726,7 +755,7 @@ function resetAdvancedToDefaults(){
   rebuildServices();
   saveState();
   hydrateAdvancedUI();
-  recalc();
+  scheduleRecalc();
   showToast("Defaults restaurados 🧼");
   if(ADV.msg) ADV.msg.textContent = "Defaults restaurados. Sin inventos.";
 }
@@ -774,7 +803,11 @@ function getFiltered(){
     if(nq && !s._search.includes(nq)) return false;
     if(mod && s.modality !== mod) return false;
     if(type && s.typeLabel !== type) return false;
-    if(cls && String(s.classes || "") !== String(cls)) return false;
+
+    // "Clases / Horas": compara contra qty (horas si existen, si no clases)
+    if(cls){
+      if(String(s.qty || "") !== String(cls)) return false;
+    }
     return true;
   });
 }
@@ -827,6 +860,13 @@ function renderCards(rows){
   rows.forEach(r=>{
     const el = document.createElement("div");
     el.className = "card";
+
+    const qtyPill = r.qty
+      ? (r.qtyUnit === "horas"
+          ? `<span class="pill">${r.qty} hora${r.qty===1?"":"s"}</span>`
+          : `<span class="pill">${r.qty} clase${r.qty===1?"":"s"}</span>`)
+      : "";
+
     el.innerHTML = `
       <div class="card-top">
         <div class="card-title">${r.name}</div>
@@ -835,7 +875,7 @@ function renderCards(rows){
       <div class="card-meta">
         <span class="pill">${r.modality || "—"}</span>
         <span class="pill">${r.typeLabel || "Otro"}</span>
-        ${r.classes ? `<span class="pill">${r.classes} clase${r.classes===1?"":"s"}</span>` : ""}
+        ${qtyPill}
         ${r.months ? `<span class="pill">${r.months} mes${r.months===1?"":"es"}</span>` : ""}
       </div>
     `;
@@ -856,8 +896,6 @@ function isDialogOpen(dlg){
 }
 
 function getAffordBaseList(){
-  // scope = shown => lo que estás “viendo” (si showOnlyVisible OFF, igual se respeta esa lógica de "visible")
-  // scope = all   => TODO el catálogo
   if(state.afford.scope === "all") return SERVICES.slice();
   return getVisibleList();
 }
@@ -866,7 +904,6 @@ function renderAfford(){
   if(!$affordTable) return;
 
   const smmlv = safeNumber(state.afford.smmlv, 0);
-  const max = clamp(safeNumber(state.afford.max, 3), 1, 12);
 
   $affordTable.innerHTML = "";
 
@@ -874,15 +911,13 @@ function renderAfford(){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td colspan="5" class="muted" style="padding:14px">
-        Pon el valor del SMMLV en COP para calcular porcentajes. (Sí, toca escribirlo… la vida es dura).
+        Pon el valor del SMMLV en COP para calcular porcentajes. (Sí, toca escribirlo…)
       </td>
     `;
     $affordTable.appendChild(tr);
     return;
   }
 
-  // el thead en HTML trae 1..3 fijo. Si el usuario sube max, igual mostramos 1..3 en tabla
-  // (si quieres 1..N dinámico, lo hacemos luego cuando ajustemos CSS/HTML del modal).
   const baseList = getAffordBaseList();
   const rows = computeList(baseList);
 
@@ -901,16 +936,11 @@ function renderAfford(){
     `;
     $affordTable.appendChild(tr);
   });
-
-  // Si el usuario eligió max != 3, lo guardamos igual, pero la tabla aún es 1..3 por diseño del modal.
-  // (Ya quedó listo para hacerlo dinámico cuando quieras.)
-  void max;
 }
 
 function openAffordModal(){
   if(!$affordModal) return;
 
-  // hidrata inputs
   if($smmlvValue) $smmlvValue.value = String(state.afford.smmlv || "");
   if($smmlvMax) $smmlvMax.value = String(state.afford.max || 3);
   if($affordScope) $affordScope.value = state.afford.scope || "shown";
@@ -940,10 +970,19 @@ function recalc(){
   setBadge("Actualizado", "ok");
   setLoading(false);
 
-  // si el modal está abierto, lo actualizamos con lo último (incluye ccFee y filtros)
   if(isDialogOpen($affordModal)) renderAfford();
 
   saveState();
+}
+
+/* ✅ Batch de recalcs para inputs (menos “lag” al tipear) */
+let _recalcRAF = 0;
+function scheduleRecalc(){
+  if(_recalcRAF) cancelAnimationFrame(_recalcRAF);
+  _recalcRAF = requestAnimationFrame(()=>{
+    _recalcRAF = 0;
+    recalc();
+  });
 }
 
 /* ================================
@@ -954,6 +993,9 @@ function toCopyText(){
 
   const rows = list.map(s=>{
     const price = computePrice(s, state.base, state.rounding, state.globalPct, state.config, state.ccFee);
+
+    // Para copiar: si es por horas, lo dejamos tal cual el name (ya dice horas),
+    // solo concatenamos precio.
     return `${s.name}\t${formatCOP(price)}`;
   });
 
@@ -1002,21 +1044,21 @@ function bindEvents(){
   // Inputs base
   $basePrice?.addEventListener("input", ()=>{
     state.base = clamp(safeNumber($basePrice.value, DEFAULTS.base), 0, 99999999);
-    recalc();
+    scheduleRecalc();
   });
   $rounding?.addEventListener("change", ()=>{
     state.rounding = safeNumber($rounding.value, DEFAULTS.rounding);
-    recalc();
+    scheduleRecalc();
   });
   $globalPct?.addEventListener("input", ()=>{
     state.globalPct = clamp(safeNumber($globalPct.value, 0), -99, 300);
-    recalc();
+    scheduleRecalc();
   });
 
   // Recargo tarjeta
   $ccFee?.addEventListener("change", ()=>{
     state.ccFee = !!$ccFee.checked;
-    recalc();
+    scheduleRecalc();
   });
 
   // Botoncitos +/- base
@@ -1024,58 +1066,58 @@ function bindEvents(){
   $btnBaseDown?.addEventListener("click", ()=>{
     state.base = Math.max(0, state.base - STEP);
     if($basePrice) $basePrice.value = String(state.base);
-    recalc();
+    scheduleRecalc();
   });
   $btnBaseUp?.addEventListener("click", ()=>{
     state.base = state.base + STEP;
     if($basePrice) $basePrice.value = String(state.base);
-    recalc();
+    scheduleRecalc();
   });
 
   // Search + filtros
   $q?.addEventListener("input", ()=>{
     state.filters.q = $q.value || "";
-    recalc();
+    scheduleRecalc();
   });
   $btnClear?.addEventListener("click", ()=>{
     state.filters.q = "";
     if($q) $q.value = "";
-    recalc();
+    scheduleRecalc();
   });
   $fMod?.addEventListener("change", ()=>{
     state.filters.mod = $fMod.value || "";
-    recalc();
+    scheduleRecalc();
   });
   $fType?.addEventListener("change", ()=>{
     state.filters.type = $fType.value || "";
-    recalc();
+    scheduleRecalc();
   });
   $fClasses?.addEventListener("change", ()=>{
     state.filters.classes = $fClasses.value || "";
-    recalc();
+    scheduleRecalc();
   });
 
   // View
   $viewTable?.addEventListener("click", ()=>{
     state.view = "table";
     applyView();
-    recalc();
+    scheduleRecalc();
   });
   $viewCards?.addEventListener("click", ()=>{
     state.view = "cards";
     applyView();
-    recalc();
+    scheduleRecalc();
   });
 
   // Toggles
   $showOnlyVisible?.addEventListener("change", ()=>{
     state.showOnlyVisible = !!$showOnlyVisible.checked;
-    recalc();
+    scheduleRecalc();
   });
   $compactMode?.addEventListener("change", ()=>{
     state.compact = !!$compactMode.checked;
     applyView();
-    recalc();
+    scheduleRecalc();
   });
 
   // Copiar
@@ -1087,7 +1129,7 @@ function bindEvents(){
     else $helpModal?.setAttribute("open","true");
   });
 
-  // NUEVO: Modal análisis SMMLV
+  // Modal análisis SMMLV
   $btnAfford?.addEventListener("click", openAffordModal);
 
   $smmlvValue?.addEventListener("input", ()=>{
@@ -1098,7 +1140,6 @@ function bindEvents(){
   $smmlvMax?.addEventListener("change", ()=>{
     state.afford.max = clamp(safeNumber($smmlvMax.value, 3), 1, 12);
     saveState();
-    // por ahora no cambia columnas (HTML fijo), pero sí guardamos la intención
     renderAfford();
   });
   $affordScope?.addEventListener("change", ()=>{
@@ -1125,11 +1166,10 @@ function resetFiltersOnly(){
   if($fMod) $fMod.value = "";
   if($fType) $fType.value = "";
   if($fClasses) $fClasses.value = "";
-  recalc();
+  scheduleRecalc();
 }
 
 function resetAll(){
-  // Reset general mantiene config actual (para no borrarte reglas por accidente)
   const keepConfig = deepClone(state.config || CONFIG_DEFAULT);
 
   state = {
@@ -1145,7 +1185,6 @@ function resetAll(){
   if($showOnlyVisible) $showOnlyVisible.checked = !!state.showOnlyVisible;
   if($compactMode) $compactMode.checked = !!state.compact;
 
-  // afford UI
   if($smmlvValue) $smmlvValue.value = String(state.afford.smmlv || "");
   if($smmlvMax) $smmlvMax.value = String(state.afford.max || 3);
   if($affordScope) $affordScope.value = state.afford.scope || "shown";
@@ -1161,14 +1200,11 @@ function resetAll(){
 function init(){
   loadState();
 
-  // construir catálogo
   state.config = normalizeConfig(state.config);
   rebuildServices();
 
-  // UI avanzada
   ensureAdvancedUI();
 
-  // hidratar UI desde state
   if($basePrice) $basePrice.value = String(state.base);
   if($rounding) $rounding.value = String(state.rounding);
   if($globalPct) $globalPct.value = String(state.globalPct);
@@ -1182,7 +1218,6 @@ function init(){
   if($showOnlyVisible) $showOnlyVisible.checked = !!state.showOnlyVisible;
   if($compactMode) $compactMode.checked = !!state.compact;
 
-  // afford inputs
   if($smmlvValue) $smmlvValue.value = String(state.afford.smmlv || "");
   if($smmlvMax) $smmlvMax.value = String(state.afford.max || 3);
   if($affordScope) $affordScope.value = state.afford.scope || "shown";
