@@ -1,9 +1,9 @@
 /* =============================================================================
-  styles.css — Ajustador de Precios · Musicala (vPRO LIGHT)
+  styles.css — Ajustador de Precios · Musicala (vPRO LIGHT+) ✅
   - Light UI nítida + accesible
   - Topbar + layout panel/content
   - KPIs, filtros, tabla, cards
-  - Modal, toast, loader, empty state
+  - Modal (Help + SMMLV), toast, loader, empty state
   - Compact mode
   - Advanced editor (inyectado por app.js dentro de <details>)
   - Brand logo styling (logo.png)
@@ -60,6 +60,11 @@
   /* motion */
   --t-fast: 140ms ease;
   --t-med: 220ms ease;
+
+  /* extras */
+  --glass: rgba(255,255,255,.78);
+  --glass-2: rgba(255,255,255,.86);
+  --head-bg: rgba(249,250,251,.92);
 }
 
 /* =========================
@@ -79,11 +84,20 @@ body{
   color:var(--text);
   padding: 18px;
   line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a{ color:inherit; }
 .muted{ color:var(--muted); }
 .right{ text-align:right; }
+
+hr{
+  border:0;
+  height:1px;
+  background: var(--line2);
+  margin: 12px 0;
+}
 
 /* Small code UI */
 code, kbd{
@@ -122,7 +136,10 @@ kbd{
 
 /* Focus visible */
 :focus{ outline:none; }
-:focus-visible{ box-shadow: var(--focus); border-color: rgba(12,65,196,.35) !important; }
+:focus-visible{
+  box-shadow: var(--focus);
+  border-color: rgba(12,65,196,.35) !important;
+}
 
 /* Reduce motion */
 @media (prefers-reduced-motion: reduce){
@@ -146,7 +163,7 @@ kbd{
   gap: var(--gap);
   padding: 14px 14px;
   border-radius: var(--radius);
-  background: rgba(255,255,255,.78);
+  background: var(--glass);
   border: 1px solid var(--line2);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(10px);
@@ -173,7 +190,7 @@ kbd{
 }
 html.no-logo .brand-logo{ display:none; }
 
-/* Puntico decorativo (si el logo carga, igual se ve bien) */
+/* Puntico decorativo */
 .logo-dot{
   width: 14px;
   height: 14px;
@@ -225,7 +242,7 @@ html.no-logo .logo-dot{ display:none; }
    Panel
 ========================= */
 .panel{
-  background: rgba(255,255,255,.82);
+  background: var(--glass);
   border:1px solid var(--line2);
   border-radius: var(--radius);
   padding: 14px;
@@ -308,7 +325,7 @@ input, select, textarea{
   padding: 10px 12px;
   font-size: 14px;
   box-shadow: 0 6px 14px rgba(2,6,23,.05);
-  transition: border-color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast), filter var(--t-fast);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast), filter var(--t-fast), background var(--t-fast);
 }
 
 input:hover, select:hover, textarea:hover{
@@ -323,6 +340,23 @@ textarea{
 
 input::placeholder, textarea::placeholder{
   color: rgba(89,98,115,.65);
+}
+
+/* nicer disabled */
+input:disabled, select:disabled, textarea:disabled, button:disabled{
+  opacity: .60;
+  cursor: not-allowed;
+  filter: grayscale(.1);
+}
+
+/* remove number spinners (cosmetic) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"]{
+  -moz-appearance: textfield;
 }
 
 select{
@@ -369,7 +403,7 @@ select{
   font-weight: 800;
 }
 
-/* checkbox row (incluye #showOnlyVisible, #compactMode, #ccFee) */
+/* checkbox row */
 .check{
   display:flex;
   align-items:center;
@@ -526,7 +560,7 @@ select{
   color: var(--muted);
   cursor:pointer;
   box-shadow: 0 8px 18px rgba(2,6,23,.06);
-  transition: transform var(--t-fast), border-color var(--t-fast), color var(--t-fast), filter var(--t-fast);
+  transition: transform var(--t-fast), border-color var(--t-fast), color var(--t-fast), filter var(--t-fast), background var(--t-fast);
 }
 .icon-btn:hover{
   color: var(--text);
@@ -555,7 +589,7 @@ select{
   .kpis{ grid-template-columns: repeat(2, 1fr); }
 }
 .kpi{
-  background: rgba(255,255,255,.82);
+  background: var(--glass);
   border: 1px solid var(--line2);
   border-radius: var(--radius);
   padding: 14px;
@@ -579,7 +613,7 @@ select{
 
 /* Filters */
 .filters{
-  background: rgba(255,255,255,.82);
+  background: var(--glass);
   border: 1px solid var(--line2);
   border-radius: var(--radius);
   padding: 14px;
@@ -639,7 +673,7 @@ select{
    Table
 ========================= */
 .table-wrap{
-  background: rgba(255,255,255,.86);
+  background: var(--glass-2);
   border: 1px solid var(--line2);
   border-radius: var(--radius);
   overflow:hidden;
@@ -655,6 +689,7 @@ select{
   padding: 12px 14px;
   border-bottom: 1px solid var(--line2);
   text-align:left;
+  vertical-align: middle;
 }
 .table th{
   font-size: 12px;
@@ -662,7 +697,12 @@ select{
   font-weight: 950;
   letter-spacing: .25px;
   text-transform: uppercase;
-  background: rgba(249,250,251,.92);
+  background: var(--head-bg);
+}
+.table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .table td{
   font-size: 14px;
@@ -672,6 +712,27 @@ select{
 }
 .table td.right{
   font-weight: 950;
+}
+.table td:first-child{
+  max-width: 0;
+  word-break: break-word;
+}
+
+/* small screens: table becomes stack-ish */
+@media (max-width: 620px){
+  .table thead{ display:none; }
+  .table, .table tbody, .table tr, .table td{ display:block; width:100%; }
+  .table tr{
+    border-bottom: 1px solid var(--line2);
+    padding: 10px 12px;
+  }
+  .table td{
+    border-bottom: 0;
+    padding: 6px 0;
+  }
+  .table td.right{
+    text-align:left;
+  }
 }
 
 /* =========================
@@ -686,7 +747,7 @@ select{
   .cards{ grid-template-columns: 1fr; }
 }
 .card{
-  background: rgba(255,255,255,.86);
+  background: var(--glass-2);
   border: 1px solid var(--line2);
   border-radius: var(--radius);
   padding: 14px;
@@ -743,6 +804,7 @@ select{
 }
 .empty p{
   margin: 4px 0 10px 0;
+  color: var(--muted);
 }
 .empty-icon{ font-size: 26px; }
 
@@ -758,7 +820,6 @@ select{
   letter-spacing: .15px;
 }
 
-/* optional mount */
 #advMount{
   display:flex;
   flex-direction:column;
@@ -766,18 +827,27 @@ select{
 }
 
 /* =========================
-   Modal
+   Modal (Help + SMMLV)
 ========================= */
 .modal::backdrop{
   background: rgba(2,6,23,.35);
   backdrop-filter: blur(6px);
 }
+
 .modal{
   border: none;
   padding: 0;
   background: transparent;
-  max-width: min(720px, 94vw);
+  max-width: min(880px, 94vw);
 }
+
+/* dialog baseline polish */
+dialog.modal{
+  border: none;
+  border-radius: var(--radius);
+}
+dialog.modal:focus-visible{ box-shadow: none; }
+
 .modal-card{
   background: rgba(255,255,255,.96);
   border: 1px solid var(--line2);
@@ -785,6 +855,7 @@ select{
   box-shadow: var(--shadow);
   overflow:hidden;
 }
+
 .modal-head{
   display:flex;
   align-items:center;
@@ -802,6 +873,15 @@ select{
   padding: 14px;
   color: var(--text);
 }
+.modal-foot{
+  padding: 14px;
+  border-top: 1px solid var(--line2);
+  display:flex;
+  justify-content:flex-end;
+  gap: 10px;
+}
+
+/* tips list (help modal) */
 .tips{
   margin: 0;
   padding-left: 18px;
@@ -810,39 +890,14 @@ select{
   margin: 8px 0;
   color: var(--muted);
 }
-.modal-foot{
-  padding: 14px;
-  border-top: 1px solid var(--line2);
-  display:flex;
-  justify-content:flex-end;
-}
 
-/* =========================
-   Toast
-========================= */
-.toast{
-  position: fixed;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  background: rgba(255,255,255,.92);
-  border: 1px solid var(--line2);
-  color: var(--text);
-  padding: 10px 14px;
-  border-radius: 999px;
-  box-shadow: 0 14px 30px rgba(2,6,23,.10);
-  backdrop-filter: blur(10px);
-}
-
-/* =========================
-   Analysis UI (preparado)
-   - Para cuando metamos el panel/modal de SMMLV
-========================= */
+/* SMMLV modal goodies */
 .analysis-grid{
   display:grid;
   grid-template-columns: 1fr;
   gap: 10px;
 }
+
 .analysis-kpis{
   display:grid;
   grid-template-columns: repeat(3, 1fr);
@@ -851,6 +906,7 @@ select{
 @media (max-width: 720px){
   .analysis-kpis{ grid-template-columns: 1fr; }
 }
+
 .a-kpi{
   border: 1px solid var(--line2);
   border-radius: 16px;
@@ -869,17 +925,26 @@ select{
   font-size: 16px;
   font-weight: 950;
 }
+
+.analysis-note{
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
 .analysis-table{
   width:100%;
   border-collapse: collapse;
   border: 1px solid var(--line2);
   border-radius: 16px;
   overflow:hidden;
+  background: rgba(255,255,255,.92);
 }
 .analysis-table th, .analysis-table td{
   padding: 10px 12px;
   border-bottom: 1px solid var(--line2);
   text-align:left;
+  vertical-align: top;
 }
 .analysis-table th{
   background: rgba(249,250,251,.95);
@@ -889,11 +954,71 @@ select{
   text-transform: uppercase;
   letter-spacing: .25px;
 }
-.analysis-note{
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.3;
+.analysis-table td.right{
+  text-align:right;
+  font-weight: 900;
 }
+
+/* if your HTML uses #affordTable for tbody rows */
+#affordTable tr:hover td{
+  background: rgba(12,65,196,.04);
+}
+#affordTable td{
+  font-size: 13.5px;
+}
+#affordTable td:first-child{
+  max-width: 0;
+  word-break: break-word;
+}
+
+/* allow modal table to scroll instead of exploding height */
+.modal-body .table-scroll,
+.modal-body .analysis-scroll{
+  max-height: min(60vh, 520px);
+  overflow:auto;
+  border-radius: 16px;
+  border: 1px solid var(--line2);
+  background: rgba(255,255,255,.92);
+}
+
+/* simple "x" button style if you have one */
+.modal-close{
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  border: 1px solid var(--line2);
+  background: rgba(255,255,255,.90);
+  cursor:pointer;
+  color: var(--muted);
+  box-shadow: 0 8px 18px rgba(2,6,23,.06);
+  transition: transform var(--t-fast), border-color var(--t-fast), color var(--t-fast), filter var(--t-fast);
+}
+.modal-close:hover{
+  color: var(--text);
+  border-color: rgba(12,65,196,.20);
+  transform: translateY(-1px);
+  filter: brightness(1.01);
+}
+.modal-close:active{ transform: translateY(0); filter:none; }
+
+/* =========================
+   Toast
+========================= */
+.toast{
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,.92);
+  border: 1px solid var(--line2);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 999px;
+  box-shadow: 0 14px 30px rgba(2,6,23,.10);
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+}
+.toast[hidden]{ display:none !important; }
 
 /* =========================
    Compact mode
@@ -932,4 +1057,18 @@ body.compact .details summary{ padding: 11px 12px; }
   .topbar{ padding: 12px; }
   .brand-logo{ height: 34px; padding: 6px 8px; }
   .top-actions .btn{ width: 100%; }
+}
+
+/* =========================
+   Print (por si alguien insiste)
+========================= */
+@media print{
+  body{
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .topbar, .panel, .filters, .toast, .loader{ box-shadow:none !important; backdrop-filter:none !important; }
+  .top-actions, .btn, .icon-btn, .seg, details{ display:none !important; }
+  .layout{ grid-template-columns: 1fr !important; }
+  .table-wrap{ border: 1px solid #ddd !important; }
 }
